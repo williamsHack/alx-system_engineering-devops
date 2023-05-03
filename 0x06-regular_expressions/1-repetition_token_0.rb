@@ -1,12 +1,2 @@
 #!/usr/bin/env ruby
-
-regex = /h(t*)n/
-
-input = ARGV[0]
-
-if input.match(regex)
-  puts "Match found: #{input}"
-else
-  puts "No match found"
-end
-
+puts ARGV[0].scan(/hbt{2,5}n/).join
