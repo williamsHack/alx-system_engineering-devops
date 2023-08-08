@@ -1,78 +1,48 @@
 #!/usr/bin/python3
-""" This script contains function that queries the Reddit API,
-    parses the title of all hot articles, and prints a sorted count
-    of given keywords.
-
-    Globals:
-        @posts: the list of a hot posts from a given subreddit
-        @after: the link that keeps track of a pagination
-"""
+"""Function to recursively GET the count of the specified words occuring
+in the titles of the hot posts from a give subreddit"""
 from requests import get
-from sys import argv
-
-posts = []
-after = None
 
 
-def print_counts(posts, word_list):
-    """ Prints a sorted count of given keywords (case-insensitive)
-
-        Args:
-            @posts: list of a hottest posts
-            @word_list: a list of keywords to print
-
-        Globals:
-            @posts: the list of a hot posts from a given subreddit
-            @after: the link that keeps track of a pagination
-    """
-    results = {}
-    for word in word_list:
-        results[word.lower()] = 0
-
-    for title in posts:
-        words = title.split(" ")
-        for word in words:
-            if results.get(word) is not None:
-                results[word] += 1
-
-    keywords = sorted(results, key=results.get, reverse=True)
-    for kword in keywords:
-        if results.get(kword):
+def count_words(subreddit, word_list, word_counts={}, after=None):
+    """Recursively GET all the count of words from `word_list` occurring
+    in the hot posts of `subreddit`"""
+    word_list = list(set(word_list))
+    r = get("https://www.reddit.com/r/{}/hot.json".format(subreddit),
+            params={"raw_json": 1,
+                    "g": "GLOBAL",
+                    "after": after,
+                    "limit": 100},
+            headers={"User-Agent": "Andrew from Holberton"},
+            allow_redirects=False)
+    try:
+        r.raise_for_status()
+    except:
+        pass
+    else:
+        try:
             for word in word_list:
-                if kword == word.lower():
-                    print("{}: {}".format(word, results[kword]))
-
-
-def count_words(subreddit, word_list):
-    """ Queries the Reddit API, parses the title of all hot articles,
-        prints a sorted count of given keywords (case-insensitive,
-        delimited by spaces. E.g., JavaScript should count as javascript,
-        but java should not).
-
-        Args:
-            @subreddit: a subreddit to retrieve
-            @word_list: a list of keywords to search
-    """
-    global posts
-    global after
-
-    headers = {"User-Agent": "0x16. API advanced by Cu7ious"}
-    url = "https://www.reddit.com/r/{}/hot.json".format(subreddit)
-
-    if after:
-        url = url + "?after={}".format(after)
-
-    count = get(url, headers=headers).json().get("data")
-
-    for post in count.get("children"):
-        posts.append(post.get("data").get("title").lower())
-
-    after = count.get("after")
-    if after is not None:
-        return count_words(subreddit, word_list)
-
-    return print_counts(posts, word_list)
-
-
-if __name__ == "__main__":
-    count_words(argv[1], argv[2].split(" "))
+                word_counts.setdefault(word, 0)
+            children = r.json().get('data').get('children')
+            for c in children:
+                for word in word_list:
+                    word_counts[word] += sum(map(lambda w: w == word.lower(),
+                                                 c.get('data')
+                                                 .get('title')
+                                                 .lower()
+                                                 .split()))
+            after = r.json().get('data').get('after')
+            if after is None:
+                if all(map(lambda w: w[1] == 0, word_counts.items())):
+                    print()
+                else:
+                    for word, count in sorted(word_counts.items(),
+                                              key=lambda i: i[1],
+                                              reverse=True):
+                        if count > 0:
+                            print("{}: {}".format(word, count))
+            else:
+                return count_words(subreddit, word_list,
+                                   word_counts=word_counts, after=after)
+        except:
+            pass
